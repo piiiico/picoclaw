@@ -12,7 +12,6 @@ import {
 } from "./config.ts";
 import {
 	cleanupOrphanedContainers,
-	clearSessionFiles,
 	ensureIpcDirs,
 	ensureSessionsDir,
 	seedWorkspace,
@@ -104,6 +103,9 @@ async function dispatchChatAction(
 const containers = new Map<string, ContainerState>();
 const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const typingIntervals = new Map<string, ReturnType<typeof setInterval>>();
+// Tracks the timestamp of the last /new reset per chatId.
+// Used to discard session writes from containers that started before the reset.
+const sessionResets = new Map<string, number>();
 
 const TYPING_INTERVAL = 4000;
 
@@ -231,6 +233,10 @@ async function startContainer(
 	prompt: string,
 	caller?: { name: string; source: "telegram" | "scheduler" } | undefined,
 ): Promise<void> {
+	// Capture spawn time before any async work. Used to detect if /new was called
+	// while this container was running (sessionResets[chatId] > spawnTime).
+	const spawnTime = Date.now();
+
 	// Prepare workspace
 	seedWorkspace(chatId);
 	ensureWorkspaceGit(chatId);
@@ -256,7 +262,12 @@ async function startContainer(
 	const { proc, containerName, result } = await spawnContainer(
 		chatId,
 		{ prompt, sessionId, chatId, caller, model, anthropicApiKey },
-		(output) => handleOutput(chatId, output),
+		async (output) => {
+			// Drop output (including session writes) from containers that were
+			// superseded by a /new reset after this container was spawned.
+			if (spawnTime <= (sessionResets.get(chatId) ?? 0)) return;
+			await handleOutput(chatId, output);
+		},
 	);
 
 	containers.set(chatId, {
@@ -281,7 +292,13 @@ async function startContainer(
 				idleTimers.delete(chatId);
 			}
 
-			if (finalOutput.newSessionId) {
+			if (
+				finalOutput.newSessionId &&
+				spawnTime > (sessionResets.get(chatId) ?? 0)
+			) {
+				// Only persist the new session ID if /new was NOT called after this
+				// container started. Otherwise we'd restore a stale session that the
+				// user explicitly cleared.
 				const sessions = readSessions();
 				const existing = sessions[chatId];
 				sessions[chatId] = {
@@ -363,6 +380,8 @@ async function handleMessage(
 				idleTimers.delete(chatId);
 			}
 		}
+		// Record reset time so in-flight containers don't overwrite the cleared session.
+		sessionResets.set(chatId, Date.now());
 		// Clear session ID and wipe Claude session files
 		const sessions = readSessions();
 		if (model) {
@@ -375,7 +394,6 @@ async function handleMessage(
 			delete sessions[chatId];
 		}
 		writeSessions(sessions);
-		clearSessionFiles(chatId);
 
 		const effectiveModel =
 			model ??

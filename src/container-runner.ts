@@ -81,20 +81,6 @@ export function seedWorkspace(chatId: string): void {
 	}
 }
 
-/**
- * Ensure sessions directory has settings.json for Claude SDK.
- */
-/**
- * Wipe Claude session files so the next container starts a truly fresh session.
- * Preserves settings.json.
- */
-export function clearSessionFiles(chatId: string): void {
-	const sessionsDir = path.join(chatDir(chatId), "sessions");
-	if (!fs.existsSync(sessionsDir)) return;
-	fs.rmSync(sessionsDir, { recursive: true });
-	log.info({ chatId }, "Session files cleared");
-}
-
 export function ensureSessionsDir(chatId: string): void {
 	const sessionsDir = path.join(chatDir(chatId), "sessions");
 	mkdirAll(sessionsDir);
