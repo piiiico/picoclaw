@@ -374,15 +374,28 @@ async function handleMessage(
 	let images: ImageAttachment[] | undefined;
 	if (msg.photo && msg.photo.length > 0) {
 		try {
-			// Telegram provides multiple sizes; pick the largest (last in array)
-			const largest = msg.photo.at(-1);
-			if (!largest) throw new Error("Photo array unexpectedly empty");
-			const fileInfo = await client.getFile(largest.file_id);
+			// Telegram provides multiple sizes; pick the largest within safe limits.
+			// Anthropic API rejects images with dimensions > 8000px on either axis.
+			const MAX_DIM = 7680;
+			// Photos are sorted smallest → largest; iterate in reverse to find
+			// the biggest one that fits within the dimension limit.
+			const sorted = [...msg.photo].reverse();
+			const chosen =
+				sorted.find((p) => p.width <= MAX_DIM && p.height <= MAX_DIM) ??
+				sorted[sorted.length - 1]; // fallback: use smallest if all are too large
+			if (!chosen) throw new Error("Photo array unexpectedly empty");
+			if (chosen.width > MAX_DIM || chosen.height > MAX_DIM) {
+				log.warn(
+					{ chatId, width: chosen.width, height: chosen.height, MAX_DIM },
+					"Photo exceeds max dimension; using smallest available size",
+				);
+			}
+			const fileInfo = await client.getFile(chosen.file_id);
 			const buffer = await client.downloadFile(fileInfo.file_path);
 			const mediaType = inferMediaType(fileInfo.file_path);
 			images = [{ data: buffer.toString("base64"), mediaType }];
 			log.info(
-				{ chatId, fileSize: buffer.length, mediaType },
+				{ chatId, fileSize: buffer.length, mediaType, width: chosen.width, height: chosen.height },
 				"Downloaded Telegram photo",
 			);
 		} catch (err) {
