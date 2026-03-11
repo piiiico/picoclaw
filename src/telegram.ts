@@ -117,6 +117,28 @@ export class TelegramClient {
 			},
 		);
 	}
+
+	/**
+	 * Acknowledge a message with an emoji reaction.
+	 * Fires and forgets — a failure is non-fatal and logged at debug level.
+	 *
+	 * @param chatId   The chat containing the message.
+	 * @param messageId  The message to react to.
+	 * @param emoji    A Telegram emoji reaction string (default: "👀").
+	 */
+	async setMessageReaction(
+		chatId: number | string,
+		messageId: number,
+		emoji = "👀",
+	): Promise<void> {
+		await this.api("setMessageReaction", {
+			chat_id: chatId,
+			message_id: messageId,
+			reaction: [{ type: "emoji", emoji }],
+		}).catch((err) => {
+			log.debug({ err }, "setMessageReaction failed");
+		});
+	}
 }
 
 function splitMessage(text: string, maxLen: number): string[] {

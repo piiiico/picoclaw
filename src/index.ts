@@ -368,6 +368,11 @@ async function handleMessage(
 	// Register chatId → client routing
 	clientsByChatId.set(chatId, client);
 
+	// Acknowledge receipt immediately with a reaction (fire-and-forget).
+	// This gives Håkon instant visual feedback that the message was received,
+	// before the agent container even starts.
+	client.setMessageReaction(chatId, msg.message_id).catch(() => {});
+
 	const text = (msg.text ?? msg.caption ?? "").trim();
 
 	// Download photo if present
