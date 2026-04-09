@@ -371,6 +371,7 @@ async function handleOutput(
 			model: session2?.model ?? botCfg?.defaultModel,
 			sessionType: "interactive",
 			source: "telegram",
+			botApiKey: botCfg?.agentlairApiKey,
 		});
 	}
 
@@ -379,6 +380,7 @@ async function handleOutput(
 		const cstate = containers.get(chatId);
 		const sid = cstate?.sessionId ?? output.newSessionId;
 		if (sid) {
+			const botCfg2 = botConfigForChat(chatId);
 			audit.event({
 				sessionId: sid,
 				eventType: "tool.use",
@@ -389,6 +391,7 @@ async function handleOutput(
 						? { input_keys: Object.keys(output.toolInput) }
 						: {}),
 				},
+				botApiKey: botCfg2?.agentlairApiKey,
 			});
 		}
 	}
@@ -520,10 +523,12 @@ async function startContainer(
 			// Audit: log session end
 			const endSessionId =
 				finalOutput.newSessionId ?? readSessions()[chatId]?.sessionId;
+			const endBotCfg = botConfigForChat(chatId);
 			if (endSessionId) {
 				audit.sessionEnd({
 					sessionId: endSessionId,
 					endReason: finalOutput.status === "error" ? "error" : "completed",
+					botApiKey: endBotCfg?.agentlairApiKey,
 				});
 			}
 
@@ -532,6 +537,7 @@ async function startContainer(
 				caller,
 				prompt,
 				sessionId: endSessionId,
+				botApiKey: endBotCfg?.agentlairApiKey,
 			}).catch(() => {});
 		})
 		.catch((err) => {
@@ -761,7 +767,9 @@ async function spawnEphemeral(
 		source: "scheduler" as const,
 	};
 
-	const anthropicApiKey = botConfigForChat(chatId)?.anthropicApiKey;
+	const ephBotCfg = botConfigForChat(chatId);
+	const anthropicApiKey = ephBotCfg?.anthropicApiKey;
+	const ephBotApiKey = ephBotCfg?.agentlairApiKey;
 
 	// We use an onOutput callback so we can detect when the query
 	// completes and signal the container to exit gracefully — this
@@ -790,6 +798,7 @@ async function spawnEphemeral(
 						chatId,
 						sessionType: "cron",
 						source: "scheduler",
+						botApiKey: ephBotApiKey,
 					});
 				}
 			}
@@ -806,6 +815,7 @@ async function spawnEphemeral(
 								? { input_keys: Object.keys(output.toolInput) }
 								: {}),
 						},
+						botApiKey: ephBotApiKey,
 					});
 				}
 			}
@@ -825,6 +835,7 @@ async function spawnEphemeral(
 		audit.sessionEnd({
 			sessionId: epSid,
 			endReason: output.status === "error" ? "error" : "completed",
+			botApiKey: ephBotApiKey,
 		});
 	}
 
@@ -907,6 +918,11 @@ async function main(): Promise<void> {
 		spawnEphemeral,
 		sendMessage: dispatchMessage,
 	});
+
+	// Register bots with audit client (logs which key each bot uses)
+	for (const cfg of botConfigs) {
+		audit.registerBot(cfg.name, cfg.agentlairApiKey);
+	}
 
 	// Start parallel polling loops (one per bot)
 	const pollers = clients.map((client) => pollBot(client));

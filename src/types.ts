@@ -4,6 +4,7 @@ export interface BotConfig {
 	allowedUserId: string;
 	defaultModel?: string | undefined;
 	anthropicApiKey: string;
+	agentlairApiKey?: string | undefined;
 }
 
 export interface ImageAttachment {
