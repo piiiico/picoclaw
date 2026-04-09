@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import pino from "pino";
+import { issueAAT } from "./agentlair-aat.ts";
 import { audit } from "./audit-client.ts";
 import {
 	DATA_DIR,
@@ -462,11 +463,22 @@ async function startContainer(
 	const effort = session?.effort;
 	const anthropicApiKey = botConfig?.anthropicApiKey;
 
+	// Issue AgentLair AAT for this session (non-blocking on failure)
+	let agentlairAAT: string | undefined;
+	if (botConfig?.agentlairApiKey) {
+		agentlairAAT = await issueAAT({
+			apiKey: botConfig.agentlairApiKey,
+			sessionId: sessionId ?? "new",
+			chatId,
+			botName: botConfig.name,
+		});
+	}
+
 	await dispatchChatAction(chatId);
 
 	const { proc, containerName, result } = await spawnContainer(
 		chatId,
-		{ prompt, sessionId, chatId, caller, model, anthropicApiKey, images, effort },
+		{ prompt, sessionId, chatId, caller, model, anthropicApiKey, images, effort, agentlairAAT },
 		async (output) => {
 			// Drop output (including session writes) from containers that were
 			// superseded by a /new reset after this container was spawned.
@@ -771,6 +783,17 @@ async function spawnEphemeral(
 	const anthropicApiKey = ephBotCfg?.anthropicApiKey;
 	const ephBotApiKey = ephBotCfg?.agentlairApiKey;
 
+	// Issue AgentLair AAT for scheduled task (non-blocking on failure)
+	let ephAAT: string | undefined;
+	if (ephBotApiKey) {
+		ephAAT = await issueAAT({
+			apiKey: ephBotApiKey,
+			sessionId: "cron",
+			chatId,
+			botName: ephBotCfg?.name ?? "unknown",
+		});
+	}
+
 	// We use an onOutput callback so we can detect when the query
 	// completes and signal the container to exit gracefully — this
 	// gives Claude Code SessionEnd hooks a chance to fire.
@@ -785,6 +808,7 @@ async function spawnEphemeral(
 			caller,
 			model: task.model,
 			anthropicApiKey,
+			agentlairAAT: ephAAT,
 			effort: task.effort,
 		},
 		async (output) => {

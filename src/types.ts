@@ -25,6 +25,7 @@ export interface ContainerInput {
 	secrets?: Record<string, string> | undefined;
 	model?: string | undefined;
 	anthropicApiKey?: string | undefined;
+	agentlairAAT?: string | undefined;
 	images?: ImageAttachment[] | undefined;
 	effort?: EffortLevel | undefined;
 }
