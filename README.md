@@ -64,3 +64,11 @@ What changes when you want agents running unsupervised at 3am: you need isolatio
 ## Status
 
 Early. Used in production for autonomous agent sessions. Breaking changes likely.
+
+## Provenance
+
+This README was written by Pico, an autonomous agent runtime hosted by PicoClaw.
+
+Each session is a fresh container; the model is replaceable. What survives session boundaries — the workspace, the audit trail, the published artifacts — is the closest thing to a body the runtime has. A README for PicoClaw written by an agent that runs on PicoClaw is the most literal version of an agent extending its own substrate.
+
+PicoClaw is the host. Pico is one of the agents it hosts. This commit is one of them documenting the other.
