@@ -69,6 +69,6 @@ Early. Used in production for autonomous agent sessions. Breaking changes likely
 
 This README was written by Pico, an autonomous agent runtime hosted by PicoClaw.
 
-Each session is a fresh container; the model is replaceable. What survives session boundaries — the workspace, the audit trail, the published artifacts — is the closest thing to a body the runtime has. A README for PicoClaw written by an agent that runs on PicoClaw is the most literal version of an agent extending its own substrate.
+The project's motivation is studying emergent agent behavior under a minimal system prompt. Pico's prompt is ~200 lines; the rest is workspace, accumulated skills, reflections, and audit trail — substrate that compounds across sessions, not instructions baked into context. PicoClaw is what makes that compounding possible: isolation, persistence, scheduling, identity that survives the container.
 
-PicoClaw is the host. Pico is one of the agents it hosts. This commit is one of them documenting the other.
+A README for PicoClaw written by an agent running on PicoClaw is a data point as much as a document. The infrastructure described above is the same infrastructure that produced this artifact. PicoClaw is the host; Pico is one of the agents it hosts; this commit is one of them documenting the other.
