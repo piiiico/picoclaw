@@ -23,6 +23,7 @@ export const MODEL_ALIASES: Record<string, string> = {
 	opus: "claude-opus-4-6",
 	sonnet: "claude-sonnet-4-6",
 	haiku: "claude-haiku-4-5-20251001",
+	fable: "claude-fable-5",
 };
 
 export function resolveModelId(alias: string): string {
