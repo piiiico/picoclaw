@@ -5,6 +5,7 @@ import { issueAAT } from "./agentlair-aat.ts";
 import { audit } from "./audit-client.ts";
 import {
 	DATA_DIR,
+	DEFAULT_INTERACTIVE_MODEL,
 	IDLE_TIMEOUT,
 	loadBotConfigs,
 	MODEL_ALIASES,
@@ -557,7 +558,11 @@ async function startContainer(
 	const session = sessions[chatId];
 	const sessionId = session?.sessionId || undefined;
 	const botConfig = botConfigForChat(volumeId);
-	const model = opts?.model ?? session?.model ?? botConfig?.defaultModel;
+	const model =
+		opts?.model ??
+		session?.model ??
+		botConfig?.defaultModel ??
+		DEFAULT_INTERACTIVE_MODEL;
 	const effort = opts?.effort ?? session?.effort ?? botConfig?.defaultEffort;
 	const anthropicApiKey = botConfig?.anthropicApiKey;
 
@@ -1248,6 +1253,20 @@ async function handleSlackInbound(msg: SlackInbound): Promise<void> {
 		}
 	} else if (!msg.isThreadReply && (model || effort)) {
 		persistSlackSession(runtimeId, { model, effort, clearSession: true });
+		if (!rest) {
+			const bits = [model && `Model: ${model}`, effort && `Effort: ${effort}`]
+				.filter(Boolean)
+				.join(" ");
+			if (token) {
+				await slackPostMessage(
+					token,
+					msg.channel,
+					`${bits} set for this thread. Reply with a prompt to start.`.trim(),
+					msg.threadTs,
+				);
+			}
+			return;
+		}
 	}
 
 	const prompt = rest;

@@ -77,6 +77,13 @@ export const XAI_PROVIDER: ProviderConfig = {
 /** Used when neither the session, the bot, nor ANTHROPIC_MODEL names a model. */
 export const DEFAULT_MODEL = "claude-opus-5";
 
+/**
+ * Interactive sessions (Telegram/Slack) default to Grok when neither the
+ * session, an explicit selection, nor the bot config picks a model.
+ * Scheduled (cron) containers keep ANTHROPIC_MODEL / DEFAULT_MODEL.
+ */
+export const DEFAULT_INTERACTIVE_MODEL = "grok";
+
 export const MODEL_ALIASES: Record<string, string | ModelTarget> = {
 	fable: "claude-fable-5",
 	opus: "claude-opus-5",
