@@ -10,6 +10,7 @@ import {
 	loadBotConfigs,
 	MODEL_ALIASES,
 	parseEffortLevel,
+	resolveEffort,
 	resolveModelId,
 	WORKSPACES_DIR,
 } from "./config.ts";
@@ -564,7 +565,11 @@ async function startContainer(
 		botConfig?.defaultModel ??
 		process.env["ANTHROPIC_MODEL"] ??
 		DEFAULT_INTERACTIVE_MODEL;
-	const effort = opts?.effort ?? session?.effort ?? botConfig?.defaultEffort;
+	const effort = resolveEffort({
+		model,
+		explicit: opts?.effort ?? session?.effort,
+		botDefault: botConfig?.defaultEffort,
+	});
 	const anthropicApiKey = botConfig?.anthropicApiKey;
 
 	// Issue AgentLair AAT for this session (non-blocking on failure)
@@ -830,6 +835,8 @@ async function handleMessage(
 			}
 		}
 
+		effort = resolveEffort({ model, explicit: effort });
+
 		const state = containers.get(chatId);
 		if (state) {
 			writeCloseSentinel(chatId, state.containerName);
@@ -907,18 +914,22 @@ async function handleMessage(
 	if (text === "/switch" || text.startsWith("/switch ")) {
 		const parsed = parseSlackPrompt(text);
 		const model = parsed.model;
-		const effort = parsed.effort;
-		if (!model && !effort) {
+		if (!model && !parsed.effort) {
 			await client.sendMessage(chatId, "Usage: /switch grok xhigh");
 			return;
 		}
 		const sessions = readSessions();
 		const existing = sessions[chatId];
+		const effort = resolveEffort({
+			model: model ?? existing?.model,
+			explicit: parsed.effort,
+			botDefault: existing?.effort,
+		});
 		sessions[chatId] = {
 			sessionId: existing?.sessionId ?? "",
 			lastActivity: new Date().toISOString(),
 			model: model ?? existing?.model,
-			effort: effort ?? existing?.effort,
+			effort,
 		};
 		writeSessions(sessions);
 		const live = containers.get(chatId);
@@ -1026,7 +1037,11 @@ async function spawnEphemeral(
 			model: task.model,
 			anthropicApiKey,
 			agentlairAAT: ephAAT,
-			effort: task.effort ?? ephBotCfg?.defaultEffort,
+			effort: resolveEffort({
+				model: task.model,
+				explicit: task.effort,
+				botDefault: ephBotCfg?.defaultEffort,
+			}),
 			profile: task.profile,
 		},
 		async (output) => {
@@ -1154,6 +1169,7 @@ async function handleSlackInbound(msg: SlackInbound): Promise<void> {
 		model = undefined;
 		effort = undefined;
 	}
+	effort = resolveEffort({ model, explicit: effort });
 	const volumeId = primaryWorkspaceId();
 	const caller = { name: msg.user, source: "slack" as const };
 	const slack = { channel: msg.channel, threadTs: msg.threadTs };

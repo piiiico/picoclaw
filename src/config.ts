@@ -97,10 +97,12 @@ export const MODEL_ALIASES: Record<string, string | ModelTarget> = {
 	k3: { model: "kimi-k3", provider: MOONSHOT_PROVIDER },
 	// Convenience shorthand; the slash form routes via OpenRouter (see below)
 	kimi: "moonshotai/kimi-k3",
-	// Grok on the host's own xAI login. These ids carry no slash, so they
-	// need explicit targets — inferProvider would otherwise read them as
-	// Anthropic model names. `x-ai/grok-4.6` still routes via OpenRouter.
-	grok: { model: "grok-4.6", provider: XAI_PROVIDER },
+	// Grok on the host's own xAI login. Bare `grok-*` ids also route via
+	// inferProvider (no per-version row). `x-ai/grok-4.7` still OpenRouter.
+	// The WORD `grok` is a fallback pin. Spawn overlays it with the live
+	// flagship from api.x.ai/v1/models (see pickGrokFlagship).
+	grok: { model: "grok-4.7", provider: XAI_PROVIDER },
+	"grok-4.7": { model: "grok-4.7", provider: XAI_PROVIDER },
 	"grok-4.6": { model: "grok-4.6", provider: XAI_PROVIDER },
 	"grok-4.5": { model: "grok-4.5", provider: XAI_PROVIDER },
 };
@@ -111,9 +113,23 @@ export const MODEL_ALIASES: Record<string, string | ModelTarget> = {
  * `/new deepseek/deepseek-chat` works without touching this file.
  */
 function inferProvider(model: string): ModelTarget {
+	const lower = model.toLowerCase();
+	// Slashless grok ids are xAI, not Anthropic. Without this, every new
+	// `grok-4.x` needed a MODEL_ALIASES row and a host restart.
+	if (lower.startsWith("grok-")) {
+		return { model: lower, provider: XAI_PROVIDER };
+	}
 	return model.includes("/")
 		? { model, provider: OPENROUTER_PROVIDER }
 		: { model };
+}
+
+/** Token the Telegram/Slack parsers may treat as a model, not prompt text. */
+export function isRoutableModelToken(tok: string): boolean {
+	const t = tok.toLowerCase();
+	return (
+		MODEL_ALIASES[t] !== undefined || t.includes("/") || t.startsWith("grok-")
+	);
 }
 
 export function resolveModelTarget(alias: string): ModelTarget {
@@ -124,6 +140,62 @@ export function resolveModelTarget(alias: string): ModelTarget {
 
 export function resolveModelId(alias: string): string {
 	return resolveModelTarget(alias).model;
+}
+
+/**
+ * Coding-flagship line: `grok-4.7`, `grok-5.0`. Not `grok-4.20` (dated SKU
+ * family; max() on the catalog would pick it over 4.7) and not grok-build.
+ * Single digit after the last dot is the discriminator.
+ */
+const GROK_FLAGSHIP = /^grok-(\d+)\.(\d)$/;
+
+export function pickGrokFlagship(ids: readonly string[]): string | null {
+	let best: { id: string; major: number; minor: number } | null = null;
+	for (const id of ids) {
+		const m = GROK_FLAGSHIP.exec(id);
+		if (!m) continue;
+		const major = Number(m[1]);
+		const minor = Number(m[2]);
+		if (
+			!best ||
+			major > best.major ||
+			(major === best.major && minor > best.minor)
+		) {
+			best = { id, major, minor };
+		}
+	}
+	return best?.id ?? null;
+}
+
+/** The word `grok` follows the live flagship; `grok-4.6` stays pinned. */
+export function resolveGrokShorthand(
+	alias: string,
+	liveIds: readonly string[] | undefined,
+): ModelTarget {
+	const target = resolveModelTarget(alias);
+	if (alias.toLowerCase() !== "grok") return target;
+	const live = liveIds ? pickGrokFlagship(liveIds) : null;
+	return live ? { model: live, provider: XAI_PROVIDER } : target;
+}
+
+function isGrokId(alias: string): boolean {
+	const id = resolveModelId(alias).toLowerCase();
+	return id === "grok" || id.startsWith("grok-");
+}
+
+/**
+ * Grok effort is xhigh unless the caller named a level. Bot defaultEffort
+ * must not demote that — it is the Claude-session fallback, not a grok cap.
+ * An explicit low/medium/high/max on the session, task, or `/new` still wins.
+ */
+export function resolveEffort(opts: {
+	model?: string | undefined;
+	explicit?: EffortLevel | undefined;
+	botDefault?: EffortLevel | undefined;
+}): EffortLevel | undefined {
+	if (opts.explicit) return opts.explicit;
+	if (opts.model && isGrokId(opts.model)) return "xhigh";
+	return opts.botDefault;
 }
 
 const VALID_EFFORT_LEVELS = new Set<EffortLevel>([

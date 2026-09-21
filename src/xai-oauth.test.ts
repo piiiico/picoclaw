@@ -23,6 +23,7 @@ import {
 import {
 	ensureXaiAccessToken,
 	parseXaiAuth,
+	parseXaiModelList,
 	resolveXaiAccessToken,
 } from "./xai-oauth.ts";
 
@@ -88,19 +89,40 @@ describe("xAI model routing", () => {
 	test("bare grok aliases route to xAI, not to Anthropic", () => {
 		// These ids carry no slash, so without an explicit target inferProvider
 		// would silently treat them as Anthropic model names.
-		for (const alias of ["grok", "grok-4.6", "grok-4.5"]) {
+		for (const alias of ["grok", "grok-4.7", "grok-4.6", "grok-4.5"]) {
 			expect(resolveModelTarget(alias).provider?.id).toBe("xai");
 		}
 	});
 
-	test("grok resolves to the current default model", () => {
-		expect(resolveModelTarget("grok").model).toBe("grok-4.6");
+	test("grok pin is the fallback when the live catalog is unread", () => {
+		expect(resolveModelTarget("grok").model).toBe("grok-4.7");
 	});
 
 	test("the slash form still routes via OpenRouter", () => {
 		// Regression: adding first-party xAI must not capture the generic
 		// vendor/model path that already worked.
 		expect(resolveModelTarget("x-ai/grok-4.6").provider?.id).toBe("openrouter");
+	});
+
+	test("unlisted grok-* ids still route to xAI without an alias row", () => {
+		const target = resolveModelTarget("grok-4.8");
+		expect(target.model).toBe("grok-4.8");
+		expect(target.provider?.id).toBe("xai");
+	});
+});
+
+describe("parseXaiModelList", () => {
+	test("reads OpenAI-shaped data[].id", () => {
+		expect(
+			parseXaiModelList({
+				data: [{ id: "grok-4.7" }, { id: "grok-4.20" }],
+			}),
+		).toEqual(["grok-4.7", "grok-4.20"]);
+	});
+
+	test("ignores junk payloads", () => {
+		expect(parseXaiModelList(null)).toEqual([]);
+		expect(parseXaiModelList({ data: "nope" })).toEqual([]);
 	});
 });
 

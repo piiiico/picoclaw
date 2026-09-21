@@ -83,6 +83,13 @@ describe("parseSlackPrompt", () => {
 		expect(p.rest).toBe("");
 	});
 
+	test("accepts an unlisted grok-* id as the model", () => {
+		const p = parseSlackPrompt("/new grok-4.8 xhigh");
+		expect(p.command).toBe("new");
+		expect(p.model).toBe("grok-4.8");
+		expect(p.effort).toBe("xhigh");
+	});
+
 	test("still accepts leftover /new prefix", () => {
 		const p = parseSlackPrompt("/new grok xhigh\nJOB 1 | OWNER: hakon");
 		expect(p.command).toBe("new");

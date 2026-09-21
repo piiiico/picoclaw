@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-import { MODEL_ALIASES, resolveModelId, resolveModelTarget } from "./config.ts";
+import {
+	MODEL_ALIASES,
+	pickGrokFlagship,
+	resolveEffort,
+	resolveGrokShorthand,
+	resolveModelId,
+	resolveModelTarget,
+} from "./config.ts";
 import { type IpcDeps, processTaskIpc } from "./ipc.ts";
 import type { ScheduledTask } from "./types.ts";
 
@@ -94,6 +101,12 @@ describe("resolveModelTarget (provider-aware resolution)", () => {
 	test("is case-insensitive like resolveModelId", () => {
 		expect(resolveModelTarget("K3").model).toBe("kimi-k3");
 	});
+
+	test("unlisted grok-* ids route to xAI, not Anthropic", () => {
+		const target = resolveModelTarget("grok-4.8");
+		expect(target.provider?.id).toBe("xai");
+		expect(target.model).toBe("grok-4.8");
+	});
 });
 
 function makeDeps(): { deps: IpcDeps; tasks: () => ScheduledTask[] } {
@@ -186,5 +199,71 @@ describe("processTaskIpc (definition-time storage)", () => {
 		);
 		expect(tasks()).toHaveLength(1);
 		expect(tasks()[0]?.model).toBe("opus");
+	});
+});
+
+describe("resolveEffort", () => {
+	test("grok without an explicit level is xhigh", () => {
+		expect(resolveEffort({ model: "grok" })).toBe("xhigh");
+		expect(resolveEffort({ model: "grok-4.7" })).toBe("xhigh");
+	});
+
+	test("an explicit level wins over the grok default", () => {
+		expect(resolveEffort({ model: "grok", explicit: "high" })).toBe("high");
+	});
+
+	test("bot defaultEffort does not demote grok off xhigh", () => {
+		expect(resolveEffort({ model: "grok", botDefault: "high" })).toBe("xhigh");
+	});
+
+	test("non-grok models keep the bot default", () => {
+		expect(resolveEffort({ model: "opus", botDefault: "high" })).toBe("high");
+		expect(resolveEffort({ model: "opus" })).toBeUndefined();
+	});
+});
+
+describe("pickGrokFlagship", () => {
+	const catalog = [
+		"grok-4.20",
+		"grok-4.20-0309-reasoning",
+		"grok-4.3",
+		"grok-4.5",
+		"grok-4.6",
+		"grok-4.7",
+		"grok-build-0.1",
+	];
+
+	test("picks grok-4.7 over grok-4.20", () => {
+		expect(pickGrokFlagship(catalog)).toBe("grok-4.7");
+	});
+
+	test("follows a newer single-digit minor without a pin bump", () => {
+		expect(pickGrokFlagship([...catalog, "grok-4.8"])).toBe("grok-4.8");
+	});
+
+	test("empty catalog returns null so the pin remains", () => {
+		expect(pickGrokFlagship([])).toBeNull();
+	});
+});
+
+describe("resolveGrokShorthand", () => {
+	test("the word grok overlays onto the live flagship", () => {
+		const t = resolveGrokShorthand("grok", [
+			"grok-4.6",
+			"grok-4.8",
+			"grok-4.20",
+		]);
+		expect(t.model).toBe("grok-4.8");
+		expect(t.provider?.id).toBe("xai");
+	});
+
+	test("an explicit grok-4.6 is not rewritten", () => {
+		expect(resolveGrokShorthand("grok-4.6", ["grok-4.8"]).model).toBe(
+			"grok-4.6",
+		);
+	});
+
+	test("falls back to the pin when the live list is empty", () => {
+		expect(resolveGrokShorthand("grok", []).model).toBe("grok-4.7");
 	});
 });

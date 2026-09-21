@@ -12,7 +12,7 @@
  */
 import pino from "pino";
 
-import { MODEL_ALIASES, parseEffortLevel } from "./config.ts";
+import { isRoutableModelToken, parseEffortLevel } from "./config.ts";
 import type { EffortLevel } from "./types.ts";
 
 const log = pino({ name: "slack" });
@@ -101,10 +101,7 @@ export function parseSlackPrompt(
 			i++;
 			continue;
 		}
-		if (
-			!model &&
-			(MODEL_ALIASES[tok.toLowerCase()] !== undefined || tok.includes("/"))
-		) {
+		if (!model && isRoutableModelToken(tok)) {
 			model = tok.toLowerCase();
 			i++;
 			continue;

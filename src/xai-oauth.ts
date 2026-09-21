@@ -152,13 +152,38 @@ export function resolveXaiAccessToken(
 type XaiProbeFetch = (
 	url: string,
 	init?: { headers?: Record<string, string>; signal?: AbortSignal },
-) => Promise<{ ok: boolean }>;
+) => Promise<{ ok: boolean; json?: () => Promise<unknown> }>;
 
-/** Cheap liveness check. 2xx from /v1/models means the bearer will survive spawn. */
+export function parseXaiModelList(payload: unknown): string[] {
+	if (payload === null || payload === undefined) return [];
+	const rows = Array.isArray(payload)
+		? payload
+		: typeof payload === "object" &&
+				Array.isArray((payload as { data?: unknown }).data)
+			? (payload as { data: unknown[] }).data
+			: typeof payload === "object" &&
+					Array.isArray((payload as { models?: unknown }).models)
+				? (payload as { models: unknown[] }).models
+				: [];
+	const ids: string[] = [];
+	for (const row of rows) {
+		if (typeof row === "string" && row.length > 0) ids.push(row);
+		else if (
+			typeof row === "object" &&
+			row !== null &&
+			typeof (row as { id?: unknown }).id === "string"
+		) {
+			ids.push((row as { id: string }).id);
+		}
+	}
+	return ids;
+}
+
+/** Liveness + catalog. 2xx from /v1/models means the bearer will survive spawn. */
 export async function probeXaiAccessToken(
 	token: string,
 	fetchImpl: XaiProbeFetch = fetch,
-): Promise<boolean> {
+): Promise<{ ok: boolean; ids: string[] }> {
 	try {
 		const res = await fetchImpl("https://api.x.ai/v1/models", {
 			headers: {
@@ -167,10 +192,38 @@ export async function probeXaiAccessToken(
 			},
 			signal: AbortSignal.timeout(10_000),
 		});
-		return res.ok;
+		if (!res.ok) return { ok: false, ids: [] };
+		let ids: string[] = [];
+		if (typeof res.json === "function") {
+			try {
+				ids = parseXaiModelList(await res.json());
+			} catch {
+				ids = [];
+			}
+		}
+		return { ok: true, ids };
 	} catch {
-		return false;
+		return { ok: false, ids: [] };
 	}
+}
+
+export async function ensureXaiSession(
+	minLifetimeMs: number,
+	fetchImpl: XaiProbeFetch = fetch,
+): Promise<{ token: string | null; ids: string[] }> {
+	const first = resolveXaiAccessToken(minLifetimeMs);
+	if (first) {
+		const probe = await probeXaiAccessToken(first, fetchImpl);
+		if (probe.ok) return { token: first, ids: probe.ids };
+	}
+	refreshViaOfficialCli();
+	const after = readCredential()?.accessToken ?? null;
+	if (after) {
+		const probe = await probeXaiAccessToken(after, fetchImpl);
+		if (probe.ok) return { token: after, ids: probe.ids };
+		return { token: after, ids: [] };
+	}
+	return { token: first, ids: [] };
 }
 
 /**
@@ -182,10 +235,5 @@ export async function ensureXaiAccessToken(
 	minLifetimeMs: number,
 	fetchImpl: XaiProbeFetch = fetch,
 ): Promise<string | null> {
-	const first = resolveXaiAccessToken(minLifetimeMs);
-	if (first && (await probeXaiAccessToken(first, fetchImpl))) return first;
-	refreshViaOfficialCli();
-	const after = readCredential()?.accessToken ?? null;
-	if (after && (await probeXaiAccessToken(after, fetchImpl))) return after;
-	return after ?? first;
+	return (await ensureXaiSession(minLifetimeMs, fetchImpl)).token;
 }
