@@ -99,6 +99,12 @@ describe("resolveModelTarget (provider-aware resolution)", () => {
 	test("is case-insensitive like resolveModelId", () => {
 		expect(resolveModelTarget("K3").model).toBe("kimi-k3");
 	});
+
+	test("unlisted grok-* ids route to xAI, not Anthropic", () => {
+		const target = resolveModelTarget("grok-4.8");
+		expect(target.provider?.id).toBe("xai");
+		expect(target.model).toBe("grok-4.8");
+	});
 });
 
 function makeDeps(): { deps: IpcDeps; tasks: () => ScheduledTask[] } {

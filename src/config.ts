@@ -97,11 +97,9 @@ export const MODEL_ALIASES: Record<string, string | ModelTarget> = {
 	k3: { model: "kimi-k3", provider: MOONSHOT_PROVIDER },
 	// Convenience shorthand; the slash form routes via OpenRouter (see below)
 	kimi: "moonshotai/kimi-k3",
-	// Grok on the host's own xAI login. These ids carry no slash, so they
-	// need explicit targets — inferProvider would otherwise read them as
-	// Anthropic model names. `x-ai/grok-4.7` still routes via OpenRouter.
-	// Aliases are PINNED, not auto-latest: bump `grok` here when the next
-	// flagship is live on api.x.ai AND the runner can clone a catalog sibling.
+	// Grok on the host's own xAI login. Bare `grok-*` ids also route via
+	// inferProvider (no per-version row). `x-ai/grok-4.7` still OpenRouter.
+	// The WORD `grok` is the only pin — bump it when the default should move.
 	grok: { model: "grok-4.7", provider: XAI_PROVIDER },
 	"grok-4.7": { model: "grok-4.7", provider: XAI_PROVIDER },
 	"grok-4.6": { model: "grok-4.6", provider: XAI_PROVIDER },
@@ -114,9 +112,23 @@ export const MODEL_ALIASES: Record<string, string | ModelTarget> = {
  * `/new deepseek/deepseek-chat` works without touching this file.
  */
 function inferProvider(model: string): ModelTarget {
+	const lower = model.toLowerCase();
+	// Slashless grok ids are xAI, not Anthropic. Without this, every new
+	// `grok-4.x` needed a MODEL_ALIASES row and a host restart.
+	if (lower.startsWith("grok-")) {
+		return { model: lower, provider: XAI_PROVIDER };
+	}
 	return model.includes("/")
 		? { model, provider: OPENROUTER_PROVIDER }
 		: { model };
+}
+
+/** Token the Telegram/Slack parsers may treat as a model, not prompt text. */
+export function isRoutableModelToken(tok: string): boolean {
+	const t = tok.toLowerCase();
+	return (
+		MODEL_ALIASES[t] !== undefined || t.includes("/") || t.startsWith("grok-")
+	);
 }
 
 export function resolveModelTarget(alias: string): ModelTarget {

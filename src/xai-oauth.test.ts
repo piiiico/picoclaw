@@ -102,6 +102,12 @@ describe("xAI model routing", () => {
 		// vendor/model path that already worked.
 		expect(resolveModelTarget("x-ai/grok-4.6").provider?.id).toBe("openrouter");
 	});
+
+	test("unlisted grok-* ids still route to xAI without an alias row", () => {
+		const target = resolveModelTarget("grok-4.8");
+		expect(target.model).toBe("grok-4.8");
+		expect(target.provider?.id).toBe("xai");
+	});
 });
 
 describe("readSecrets with a credential-minting provider", () => {
