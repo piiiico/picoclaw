@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { MODEL_ALIASES, resolveModelId, resolveModelTarget } from "./config.ts";
+import {
+	MODEL_ALIASES,
+	resolveEffort,
+	resolveModelId,
+	resolveModelTarget,
+} from "./config.ts";
 import { type IpcDeps, processTaskIpc } from "./ipc.ts";
 import type { ScheduledTask } from "./types.ts";
 
@@ -186,5 +191,25 @@ describe("processTaskIpc (definition-time storage)", () => {
 		);
 		expect(tasks()).toHaveLength(1);
 		expect(tasks()[0]?.model).toBe("opus");
+	});
+});
+
+describe("resolveEffort", () => {
+	test("grok without an explicit level is xhigh", () => {
+		expect(resolveEffort({ model: "grok" })).toBe("xhigh");
+		expect(resolveEffort({ model: "grok-4.7" })).toBe("xhigh");
+	});
+
+	test("an explicit level wins over the grok default", () => {
+		expect(resolveEffort({ model: "grok", explicit: "high" })).toBe("high");
+	});
+
+	test("bot defaultEffort does not demote grok off xhigh", () => {
+		expect(resolveEffort({ model: "grok", botDefault: "high" })).toBe("xhigh");
+	});
+
+	test("non-grok models keep the bot default", () => {
+		expect(resolveEffort({ model: "opus", botDefault: "high" })).toBe("high");
+		expect(resolveEffort({ model: "opus" })).toBeUndefined();
 	});
 });

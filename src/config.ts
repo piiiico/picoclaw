@@ -99,8 +99,11 @@ export const MODEL_ALIASES: Record<string, string | ModelTarget> = {
 	kimi: "moonshotai/kimi-k3",
 	// Grok on the host's own xAI login. These ids carry no slash, so they
 	// need explicit targets — inferProvider would otherwise read them as
-	// Anthropic model names. `x-ai/grok-4.6` still routes via OpenRouter.
-	grok: { model: "grok-4.6", provider: XAI_PROVIDER },
+	// Anthropic model names. `x-ai/grok-4.7` still routes via OpenRouter.
+	// Aliases are PINNED, not auto-latest: bump `grok` here when the next
+	// flagship is live on api.x.ai AND the runner can clone a catalog sibling.
+	grok: { model: "grok-4.7", provider: XAI_PROVIDER },
+	"grok-4.7": { model: "grok-4.7", provider: XAI_PROVIDER },
 	"grok-4.6": { model: "grok-4.6", provider: XAI_PROVIDER },
 	"grok-4.5": { model: "grok-4.5", provider: XAI_PROVIDER },
 };
@@ -124,6 +127,26 @@ export function resolveModelTarget(alias: string): ModelTarget {
 
 export function resolveModelId(alias: string): string {
 	return resolveModelTarget(alias).model;
+}
+
+function isGrokId(alias: string): boolean {
+	const id = resolveModelId(alias).toLowerCase();
+	return id === "grok" || id.startsWith("grok-");
+}
+
+/**
+ * Grok effort is xhigh unless the caller named a level. Bot defaultEffort
+ * must not demote that — it is the Claude-session fallback, not a grok cap.
+ * An explicit low/medium/high/max on the session, task, or `/new` still wins.
+ */
+export function resolveEffort(opts: {
+	model?: string | undefined;
+	explicit?: EffortLevel | undefined;
+	botDefault?: EffortLevel | undefined;
+}): EffortLevel | undefined {
+	if (opts.explicit) return opts.explicit;
+	if (opts.model && isGrokId(opts.model)) return "xhigh";
+	return opts.botDefault;
 }
 
 const VALID_EFFORT_LEVELS = new Set<EffortLevel>([

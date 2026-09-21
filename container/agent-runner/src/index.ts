@@ -21,6 +21,7 @@ import {
 	SessionManager,
 	SettingsManager,
 } from "@earendil-works/pi-coding-agent";
+import { resolvePiModel } from "./resolve-pi-model.ts";
 
 interface ImageAttachment {
 	data: string;
@@ -310,35 +311,12 @@ function findSessionFile(sessionId: string): string | undefined {
 	}
 }
 
-/**
- * Resolve `provider/model-id` against pi's catalog. Unknown OpenRouter ids are
- * accepted by cloning a catalog sibling's wire config — OpenRouter serves any
- * vendor/model id through one protocol, so `/new deepseek/deepseek-chat` keeps
- * working without a catalog entry. Limits are pinned conservatively because
- * the sibling's own would be wrong for the unknown model.
- */
 function resolveModel(runtime: ModelRuntime, spec: string): Model<Api> {
-	const slash = spec.indexOf("/");
-	if (slash < 1)
-		throw new Error(`${MODEL_SECRET} must be provider/model, got "${spec}"`);
-	const provider = spec.slice(0, slash);
-	const id = spec.slice(slash + 1);
-	const known = runtime.getModel(provider, id);
-	if (known) return known;
-	if (provider === "openrouter") {
-		const template = runtime.getModel("openrouter", "deepseek/deepseek-chat");
-		if (template) {
-			log(`Model ${spec} not in catalog; using generic OpenRouter config`);
-			return {
-				...template,
-				id,
-				name: id,
-				contextWindow: 128_000,
-				maxTokens: 16_000,
-			};
-		}
-	}
-	throw new Error(`Unknown model "${spec}" for provider "${provider}"`);
+	return resolvePiModel(
+		spec,
+		(provider, id) => runtime.getModel(provider, id),
+		log,
+	);
 }
 
 function assistantText(event: AgentSessionEvent): string | null {

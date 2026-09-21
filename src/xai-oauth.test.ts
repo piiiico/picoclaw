@@ -88,13 +88,13 @@ describe("xAI model routing", () => {
 	test("bare grok aliases route to xAI, not to Anthropic", () => {
 		// These ids carry no slash, so without an explicit target inferProvider
 		// would silently treat them as Anthropic model names.
-		for (const alias of ["grok", "grok-4.6", "grok-4.5"]) {
+		for (const alias of ["grok", "grok-4.7", "grok-4.6", "grok-4.5"]) {
 			expect(resolveModelTarget(alias).provider?.id).toBe("xai");
 		}
 	});
 
 	test("grok resolves to the current default model", () => {
-		expect(resolveModelTarget("grok").model).toBe("grok-4.6");
+		expect(resolveModelTarget("grok").model).toBe("grok-4.7");
 	});
 
 	test("the slash form still routes via OpenRouter", () => {
