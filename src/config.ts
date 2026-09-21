@@ -99,7 +99,8 @@ export const MODEL_ALIASES: Record<string, string | ModelTarget> = {
 	kimi: "moonshotai/kimi-k3",
 	// Grok on the host's own xAI login. Bare `grok-*` ids also route via
 	// inferProvider (no per-version row). `x-ai/grok-4.7` still OpenRouter.
-	// The WORD `grok` is the only pin — bump it when the default should move.
+	// The WORD `grok` is a fallback pin. Spawn overlays it with the live
+	// flagship from api.x.ai/v1/models (see pickGrokFlagship).
 	grok: { model: "grok-4.7", provider: XAI_PROVIDER },
 	"grok-4.7": { model: "grok-4.7", provider: XAI_PROVIDER },
 	"grok-4.6": { model: "grok-4.6", provider: XAI_PROVIDER },
@@ -139,6 +140,42 @@ export function resolveModelTarget(alias: string): ModelTarget {
 
 export function resolveModelId(alias: string): string {
 	return resolveModelTarget(alias).model;
+}
+
+/**
+ * Coding-flagship line: `grok-4.7`, `grok-5.0`. Not `grok-4.20` (dated SKU
+ * family; max() on the catalog would pick it over 4.7) and not grok-build.
+ * Single digit after the last dot is the discriminator.
+ */
+const GROK_FLAGSHIP = /^grok-(\d+)\.(\d)$/;
+
+export function pickGrokFlagship(ids: readonly string[]): string | null {
+	let best: { id: string; major: number; minor: number } | null = null;
+	for (const id of ids) {
+		const m = GROK_FLAGSHIP.exec(id);
+		if (!m) continue;
+		const major = Number(m[1]);
+		const minor = Number(m[2]);
+		if (
+			!best ||
+			major > best.major ||
+			(major === best.major && minor > best.minor)
+		) {
+			best = { id, major, minor };
+		}
+	}
+	return best?.id ?? null;
+}
+
+/** The word `grok` follows the live flagship; `grok-4.6` stays pinned. */
+export function resolveGrokShorthand(
+	alias: string,
+	liveIds: readonly string[] | undefined,
+): ModelTarget {
+	const target = resolveModelTarget(alias);
+	if (alias.toLowerCase() !== "grok") return target;
+	const live = liveIds ? pickGrokFlagship(liveIds) : null;
+	return live ? { model: live, provider: XAI_PROVIDER } : target;
 }
 
 function isGrokId(alias: string): boolean {

@@ -23,6 +23,7 @@ import {
 import {
 	ensureXaiAccessToken,
 	parseXaiAuth,
+	parseXaiModelList,
 	resolveXaiAccessToken,
 } from "./xai-oauth.ts";
 
@@ -93,7 +94,7 @@ describe("xAI model routing", () => {
 		}
 	});
 
-	test("grok resolves to the current default model", () => {
+	test("grok pin is the fallback when the live catalog is unread", () => {
 		expect(resolveModelTarget("grok").model).toBe("grok-4.7");
 	});
 
@@ -107,6 +108,21 @@ describe("xAI model routing", () => {
 		const target = resolveModelTarget("grok-4.8");
 		expect(target.model).toBe("grok-4.8");
 		expect(target.provider?.id).toBe("xai");
+	});
+});
+
+describe("parseXaiModelList", () => {
+	test("reads OpenAI-shaped data[].id", () => {
+		expect(
+			parseXaiModelList({
+				data: [{ id: "grok-4.7" }, { id: "grok-4.20" }],
+			}),
+		).toEqual(["grok-4.7", "grok-4.20"]);
+	});
+
+	test("ignores junk payloads", () => {
+		expect(parseXaiModelList(null)).toEqual([]);
+		expect(parseXaiModelList({ data: "nope" })).toEqual([]);
 	});
 });
 

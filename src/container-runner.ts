@@ -14,7 +14,7 @@ import {
 	OUTPUT_END_MARKER,
 	OUTPUT_START_MARKER,
 	type ProviderConfig,
-	resolveModelTarget,
+	resolveGrokShorthand,
 	SEEDS_DIR,
 	WORKSPACES_DIR,
 } from "./config.ts";
@@ -24,7 +24,7 @@ import type {
 	EffortLevel,
 	ImageAttachment,
 } from "./types.ts";
-import { ensureXaiAccessToken } from "./xai-oauth.ts";
+import { ensureXaiSession } from "./xai-oauth.ts";
 
 const log = pino({ name: "container-runner" });
 
@@ -88,18 +88,30 @@ export function readSecrets(
 	};
 }
 
+async function resolveLiveTarget(alias: string) {
+	const peek = resolveGrokShorthand(alias, undefined);
+	if (peek.provider?.id !== "xai") return peek;
+	const session = await ensureXaiSession(CONTAINER_TIMEOUT);
+	const target = resolveGrokShorthand(alias, session.ids);
+	if (session.token && target.provider) {
+		return {
+			...target,
+			provider: {
+				...target.provider,
+				resolveKey: () => session.token as string,
+			},
+		};
+	}
+	return target;
+}
+
 /** Resolve alias → pi `provider/model` spec and the credential that provider needs. */
 export async function secretsForModel(
 	alias: string,
 	anthropicApiKey: string,
 ): Promise<{ modelSpec: string; apiKey: string }> {
-	const target = resolveModelTarget(alias);
-	let provider = target.provider;
-	if (provider?.id === "xai") {
-		const live = await ensureXaiAccessToken(CONTAINER_TIMEOUT);
-		if (live) provider = { ...provider, resolveKey: () => live };
-	}
-	const secrets = readSecrets(anthropicApiKey, target.model, provider);
+	const target = await resolveLiveTarget(alias);
+	const secrets = readSecrets(anthropicApiKey, target.model, target.provider);
 	const modelSpec = secrets[MODEL_SECRET];
 	const apiKey = secrets[API_KEY_SECRET];
 	if (!modelSpec || !apiKey) {
@@ -349,16 +361,10 @@ export async function spawnContainer(
 	// current alias mapping instead of a version frozen when it was created.
 	// Idempotent for concrete IDs (passthrough), so existing tasks/sessions
 	// that already stored a resolved model keep working unchanged.
-	const target = resolveModelTarget(
+	const target = await resolveLiveTarget(
 		input.model ?? process.env["ANTHROPIC_MODEL"] ?? DEFAULT_MODEL,
 	);
 	input.model = target.model;
-	if (target.provider?.id === "xai") {
-		const live = await ensureXaiAccessToken(CONTAINER_TIMEOUT);
-		if (live) {
-			target.provider = { ...target.provider, resolveKey: () => live };
-		}
-	}
 
 	// Pass secrets via stdin
 	input.secrets = readSecrets(
