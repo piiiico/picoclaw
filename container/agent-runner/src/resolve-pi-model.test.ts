@@ -63,11 +63,26 @@ describe("resolvePiModel", () => {
 		});
 	});
 
-	test("unknown Anthropic ids still throw — no silent clone onto the wrong provider", () => {
+	test("unknown Anthropic ids still throw when no Anthropic sibling exists", () => {
 		const get = catalog({ "xai/grok-4.6": grok46 });
 		expect(() => resolvePiModel("anthropic/claude-future", get)).toThrow(
 			/Unknown model/,
 		);
+	});
+
+	test("clones claude-opus-5 for an unlisted Anthropic id", () => {
+		const opus5: CatalogModel = {
+			id: "claude-opus-5",
+			name: "Claude Opus 5",
+			contextWindow: 1_000_000,
+			maxTokens: 128_000,
+		};
+		const get = catalog({ "anthropic/claude-opus-5": opus5 });
+		expect(resolvePiModel("anthropic/claude-opus-5-5", get)).toEqual({
+			...opus5,
+			id: "claude-opus-5-5",
+			name: "claude-opus-5-5",
+		});
 	});
 
 	test("rejects a spec without a provider slash", () => {

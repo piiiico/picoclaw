@@ -228,9 +228,23 @@ describe("resolveEffort", () => {
 		expect(resolveEffort({ model: "grok", botDefault: "high" })).toBe("xhigh");
 	});
 
-	test("non-grok models keep the bot default", () => {
-		expect(resolveEffort({ model: "opus", botDefault: "high" })).toBe("high");
-		expect(resolveEffort({ model: "opus" })).toBeUndefined();
+	test("opus 5.5 without an explicit level is medium", () => {
+		expect(resolveEffort({ model: "opus" })).toBe("medium");
+		expect(resolveEffort({ model: "claude-opus-5-5" })).toBe("medium");
+	});
+
+	test("an explicit level wins over the opus 5.5 default", () => {
+		expect(resolveEffort({ model: "opus", explicit: "high" })).toBe("high");
+	});
+
+	test("bot defaultEffort does not demote opus 5.5 off medium", () => {
+		expect(resolveEffort({ model: "opus", botDefault: "high" })).toBe("medium");
+	});
+
+	test("older opus pins and other models keep the bot default", () => {
+		expect(resolveEffort({ model: "opus-5", botDefault: "high" })).toBe("high");
+		expect(resolveEffort({ model: "sonnet", botDefault: "high" })).toBe("high");
+		expect(resolveEffort({ model: "opus-5" })).toBeUndefined();
 	});
 });
 

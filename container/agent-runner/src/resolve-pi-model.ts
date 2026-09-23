@@ -1,8 +1,9 @@
 /**
  * Resolve `provider/model-id` against pi's catalog. Unknown ids on a
  * single-protocol provider are accepted by cloning a catalog sibling's wire
- * config so `/new grok` can track a newly-shipped flagship before pi's
- * bundled catalog lists it.
+ * config so a newly shipped flagship works before pi's bundled catalog lists
+ * it. Anthropic clones an Anthropic sibling only — never an xAI or OpenRouter
+ * template.
  */
 
 export type CatalogLookup<T> = (provider: string, id: string) => T | undefined;
@@ -15,7 +16,12 @@ export type CatalogModel = {
 };
 
 const XAI_CLONE_TEMPLATES = ["grok-4.6", "grok-4.5", "grok-4.3"] as const;
-
+const ANTHROPIC_CLONE_TEMPLATES = [
+	"claude-opus-5",
+	"claude-opus-4-8",
+	"claude-opus-4-7",
+	"claude-sonnet-4-6",
+] as const;
 export function resolvePiModel<T extends CatalogModel>(
 	spec: string,
 	getModel: CatalogLookup<T>,
@@ -42,9 +48,11 @@ export function resolvePiModel<T extends CatalogModel>(
 			};
 		}
 	}
-	if (provider === "xai") {
-		for (const templateId of XAI_CLONE_TEMPLATES) {
-			const template = getModel("xai", templateId);
+	if (provider === "xai" || provider === "anthropic") {
+		const templates =
+			provider === "xai" ? XAI_CLONE_TEMPLATES : ANTHROPIC_CLONE_TEMPLATES;
+		for (const templateId of templates) {
+			const template = getModel(provider, templateId);
 			if (!template) continue;
 			log(`Model ${spec} not in catalog; cloning ${template.id} wire config`);
 			return { ...template, id, name: id };

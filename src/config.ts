@@ -186,8 +186,9 @@ function isGrokId(alias: string): boolean {
 }
 
 /**
- * Grok effort is xhigh unless the caller named a level. Bot defaultEffort
- * must not demote that — it is the Claude-session fallback, not a grok cap.
+ * Grok effort is xhigh unless the caller named a level. Opus 5.5 is medium
+ * unless the caller named a level (fable slots pass high explicitly). Bot
+ * defaultEffort must not demote either — it is the fallback for other models.
  * An explicit low/medium/high/max on the session, task, or `/new` still wins.
  */
 export function resolveEffort(opts: {
@@ -197,6 +198,11 @@ export function resolveEffort(opts: {
 }): EffortLevel | undefined {
 	if (opts.explicit) return opts.explicit;
 	if (opts.model && isGrokId(opts.model)) return "xhigh";
+	if (
+		opts.model &&
+		resolveModelId(opts.model).toLowerCase() === "claude-opus-5-5"
+	)
+		return "medium";
 	return opts.botDefault;
 }
 
