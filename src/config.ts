@@ -74,19 +74,21 @@ export const XAI_PROVIDER: ProviderConfig = {
 	resolveKey: () => resolveXaiAccessToken(CONTAINER_TIMEOUT),
 };
 
-/** Used when neither the session, the bot, nor ANTHROPIC_MODEL names a model. */
+/** Scheduled/cron fallback when the task and ANTHROPIC_MODEL name no model. */
 export const DEFAULT_MODEL = "claude-opus-5";
 
 /**
- * Interactive sessions (Telegram/Slack) default to Grok when neither the
- * session, the bot config, nor ANTHROPIC_MODEL picks a model. Scheduled
- * (cron) containers keep DEFAULT_MODEL.
+ * Interactive sessions (Telegram/Slack) default to the `opus` alias when
+ * neither the session, the bot config, nor ANTHROPIC_MODEL picks a model.
+ * Resolved at spawn, so it tracks MODEL_ALIASES.opus. Scheduled (cron)
+ * containers with no model keep DEFAULT_MODEL.
  */
-export const DEFAULT_INTERACTIVE_MODEL = "grok";
+export const DEFAULT_INTERACTIVE_MODEL = "opus";
 
 export const MODEL_ALIASES: Record<string, string | ModelTarget> = {
 	fable: "claude-fable-5",
-	opus: "claude-opus-5",
+	opus: "claude-opus-5-5",
+	"opus-5.5": "claude-opus-5-5",
 	"opus-5": "claude-opus-5",
 	"opus-4.8": "claude-opus-4-8",
 	"opus-4.7": "claude-opus-4-7",
