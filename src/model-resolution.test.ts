@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+	DEFAULT_INTERACTIVE_MODEL,
 	MODEL_ALIASES,
 	pickGrokFlagship,
 	resolveEffort,
@@ -24,6 +25,17 @@ describe("resolveModelId (spawn-time resolution)", () => {
 		// the alias target in config does not break this test.
 		expect(resolveModelId("opus")).toBe(MODEL_ALIASES["opus"] as string);
 		expect(resolveModelId("opus")).not.toBe("opus");
+	});
+
+	test("opus targets claude-opus-5-5; opus-5 stays on claude-opus-5", () => {
+		expect(resolveModelId("opus")).toBe("claude-opus-5-5");
+		expect(resolveModelId("opus-5.5")).toBe("claude-opus-5-5");
+		expect(resolveModelId("opus-5")).toBe("claude-opus-5");
+	});
+
+	test("interactive default follows the opus alias", () => {
+		expect(DEFAULT_INTERACTIVE_MODEL).toBe("opus");
+		expect(resolveModelId(DEFAULT_INTERACTIVE_MODEL)).toBe("claude-opus-5-5");
 	});
 
 	test("is case-insensitive", () => {
